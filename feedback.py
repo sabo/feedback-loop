@@ -1,3 +1,6 @@
+"""Feedback-Loop is a twitter bot that chops up the twitter feed of whomever it
+follows, then spits it back at them. 
+Something something detournement something."""
 import tweepy
 from tweepy.error import TweepError
 import random
@@ -11,13 +14,14 @@ from datetime import datetime
 userdb = shelve.open("users", writeback=True)
 markovdb = shelve.open("markov", writeback=True)
 
-logging.basicConfig(filename='output.log',level=logging.DEBUG)
+logging.basicConfig(filename='output.log', level=logging.DEBUG)
 
 #Reggie the stupid simple user-matching regex
 reggie = re.compile("^@")
 
 @atexit.register
-def save_dbs():
+def close_dbs():
+    """Closes stuff."""
     userdb.close()
     markovdb.close()
 
@@ -49,7 +53,8 @@ class FeedbackLoop():
                 (reset_time - datetime.utcnow()).total_seconds() + 10
 
             if remaining_time > 0:
-                logging.info("API hits exhausted. Waking up in {0} seconds".format(remaining_time))
+                logging.info("API hits exhausted. Waking up in {0} seconds"
+                        .format(remaining_time))
                 sleep(remaining_time)
                 logging.info( "Waking up.")
                 #Just to be sure.
@@ -139,6 +144,7 @@ class FeedbackLoop():
         logging.info("Update complete.")
     
     def generate_tweet(self, length=140):
+        """Generates a tweet of given length."""
         word = random.choice(markovdb.keys())
         out = word
         while True:
@@ -171,6 +177,7 @@ class FeedbackLoop():
         return True
 
     def follow_random_suggested_user(self):
+        """Picks a random user suggested by twitter, then follows them."""
         suggested_cat = random.choice(self.api.suggested_categories())
         suggested_user = \
             random.choice(self.api.suggested_users(suggested_cat.slug))
@@ -182,6 +189,8 @@ class FeedbackLoop():
         return True
 
     def resend_random_tweet(self):
+        """Picks a tweet from a random followee, then tweets it at another
+        random followee."""
         donor = random.choice(self.friends_ids)
         recipient = random.choice(self.friends_ids)
         if donor == recipient:
@@ -206,6 +215,7 @@ class FeedbackLoop():
         return True
 
     def send_generated_tweet(self):
+        """Sends a generated tweet of max length"""
         msg = self.generate_tweet()
         try:
             self.api.update_status(msg)
@@ -214,6 +224,7 @@ class FeedbackLoop():
             return False
 
     def send_generated_shorter_tweet(self):
+        """Sends a shorter generated tweet."""
         length = random.randint(70, 139)
         msg = self.generate_tweet(length)
         try:
@@ -223,6 +234,9 @@ class FeedbackLoop():
             return False
 
     def weighted_choice(self, choices):
+        """Does what it says on the tin -- weighted choice. 'choices' should be
+        a list in the format (choice, weight).
+        Ripped off from http://stackoverflow.com/a/3679747"""
         total = sum(w for c, w in choices)
         r = random.uniform(0, total)
         upto = 0
@@ -233,6 +247,8 @@ class FeedbackLoop():
         assert False, "Shouldn't get here"
     
     def act_like_a_person(self, override = False):
+        """A crappy approximation of human behavior. Sleeps for some time, then
+        performs an action."""
         #base number of 15-minute intervals we should sleep for
         m_base = (random.randint(1, 8))*15
         #Fuzz factorfor the minutes
@@ -245,7 +261,9 @@ class FeedbackLoop():
         if not override:
             sleep((minutes * 60) + fuzz_sec)
         else:
-            logging.debug("Would sleep for {0} minutes {1} seconds. Performing action...".format(minutes, fuzz_sec))
+            logging.debug(
+                "Would sleep for {0} minutes {1} seconds. Performing action..."
+                .format(minutes, fuzz_sec))
 
         #This is a weighted list of things that our bot can do.
         #Weights should sum to 1.
